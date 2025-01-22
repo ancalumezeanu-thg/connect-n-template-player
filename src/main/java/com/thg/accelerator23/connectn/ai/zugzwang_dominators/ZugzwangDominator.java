@@ -18,19 +18,26 @@ public class ZugzwangDominator extends Player {
         //TODO: make sure said analysis uses less than 2G of heap and returns within 10 seconds on whichever machine is running it
 
         try {
-            System.out.println("findWinningMove called with: " + findWinningMove(board));
             return findWinningMove(board);
         } catch (NoMoveFoundException ignored){
         }
 
         try {
-            System.out.println("findBlockingMove called with: " + findBlockingMove(board));
             return findBlockingMove(board);
         } catch (NoMoveFoundException ignored){
         }
 
-        System.out.println("maximiseBestRun called with: " + maximiseBestRun(board));
-        return maximiseBestRun(board);
+        try {
+            return maximiseBestRun(board);
+        } catch (NoMoveFoundException ignored) {
+        }
+
+        try {
+            return blockOpponentFork(board);
+        } catch (NoMoveFoundException ignored) {
+        }
+
+        return generateRandomMove(board);
     }
 
     public boolean isWinningMove(int move, Board boardBeforeMove, Counter counter) throws InvalidMoveException {
@@ -74,9 +81,9 @@ public class ZugzwangDominator extends Player {
         throw new NoMoveFoundException();
     }
 
-    public int maximiseBestRun(Board board) {
+    public int maximiseBestRun(Board board) throws NoMoveFoundException {
         int maxBestRun = 0;
-        int move = generateRandomMove(board);
+        int move = -1;
         BoardAnalyser boardAnalyser = new BoardAnalyser(board.getConfig());
         GameState gameState = boardAnalyser.calculateGameState(board);
 
@@ -87,6 +94,42 @@ public class ZugzwangDominator extends Player {
                 move = i;
             }
         }
+
+        if (move == -1) {
+            throw new NoMoveFoundException(); // No valid moves found
+        }
+
+        return move;
+    }
+
+    public int countWinningMoves(Board board, Counter counter) {
+        int winningMoves = 0;
+
+        for (int i = 0; i < board.getConfig().getWidth(); i++) {
+            try {
+                if (isWinningMove(i, board, counter)) {
+                    winningMoves++;
+                }
+            } catch (InvalidMoveException ignored) {}
+
+        }
+
+        return winningMoves;
+    }
+
+    public int blockOpponentFork(Board board) throws NoMoveFoundException {
+        int move = generateRandomMove(board);
+
+        try {
+            for (int i = 0; i < board.getConfig().getWidth(); i++){
+                Board futureOpponentBoard = new Board(board, i, getCounter().getOther());
+                int opponentFork = countWinningMoves(futureOpponentBoard, getCounter().getOther());
+
+                if (opponentFork > 1) {
+                    move = i;
+                }
+            }
+        } catch (InvalidMoveException ignored) {}
 
         return move;
     }
