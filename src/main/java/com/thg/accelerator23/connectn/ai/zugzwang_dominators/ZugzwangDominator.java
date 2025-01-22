@@ -18,25 +18,30 @@ public class ZugzwangDominator extends Player {
         //TODO: make sure said analysis uses less than 2G of heap and returns within 10 seconds on whichever machine is running it
 
         try {
+            System.out.println("findWinningMove called");
             return findWinningMove(board);
         } catch (NoMoveFoundException ignored){
         }
 
         try {
+            System.out.println("findBlockingMove called");
             return findBlockingMove(board);
         } catch (NoMoveFoundException ignored){
         }
 
         try {
+            System.out.println("maximiseBestRun called");
             return maximiseBestRun(board);
         } catch (NoMoveFoundException ignored) {
         }
 
         try {
+            System.out.println("blockOpponentFork called");
             return blockOpponentFork(board);
         } catch (NoMoveFoundException ignored) {
         }
 
+        System.out.println("generateRandomMove called");
         return generateRandomMove(board);
     }
 
@@ -89,7 +94,7 @@ public class ZugzwangDominator extends Player {
 
         for (int i = 0; i < board.getConfig().getWidth(); i++) {
             int gameStateMaxRun = gameState.getMaxInARowByCounter().values().size();
-            if (maxBestRun > gameStateMaxRun) {
+            if (gameStateMaxRun >maxBestRun) {
                 maxBestRun = gameStateMaxRun;
                 move = i;
             }
@@ -118,19 +123,17 @@ public class ZugzwangDominator extends Player {
     }
 
     public int blockOpponentFork(Board board) throws NoMoveFoundException {
-        int move = generateRandomMove(board);
-
         try {
             for (int i = 0; i < board.getConfig().getWidth(); i++){
                 Board futureOpponentBoard = new Board(board, i, getCounter().getOther());
                 int opponentFork = countWinningMoves(futureOpponentBoard, getCounter().getOther());
 
                 if (opponentFork > 1) {
-                    move = i;
+                    return i;
                 }
             }
         } catch (InvalidMoveException ignored) {}
 
-        return move;
+        throw new NoMoveFoundException();
     }
 }
