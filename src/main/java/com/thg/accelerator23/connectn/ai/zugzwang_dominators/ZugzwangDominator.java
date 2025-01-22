@@ -3,6 +3,7 @@ package com.thg.accelerator23.connectn.ai.zugzwang_dominators;
 import com.thehutgroup.accelerator.connectn.player.Board;
 import com.thehutgroup.accelerator.connectn.player.Counter;
 import com.thehutgroup.accelerator.connectn.player.Player;
+import com.thehutgroup.accelerator.connectn.player.Position;
 
 
 public class ZugzwangDominator extends Player {
