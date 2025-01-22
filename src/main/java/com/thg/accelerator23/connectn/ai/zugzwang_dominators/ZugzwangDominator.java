@@ -18,41 +18,19 @@ public class ZugzwangDominator extends Player {
         //TODO: make sure said analysis uses less than 2G of heap and returns within 10 seconds on whichever machine is running it
 
         try {
+            System.out.println("findWinningMove called with: " + findWinningMove(board));
             return findWinningMove(board);
         } catch (NoMoveFoundException ignored){
         }
 
         try {
+            System.out.println("findBlockingMove called with: " + findBlockingMove(board));
             return findBlockingMove(board);
         } catch (NoMoveFoundException ignored){
         }
 
-        return generateRandomMove(board);
-
-        // if player O - even columns (0, 2, 4, 6, 8, 10)
-        // if player x - odd columns (1, 3, 5, 7, 9)
-
-//        List<Integer> evenColumns = new ArrayList<>();
-//        List<Integer> oddColumns = new ArrayList<>();
-//
-//        for (int col = 0; col < width; col++) {
-//            if (board.hasCounterAtPosition(new Position(col, height))) {
-//                if (col % 2 == 0) {
-//                    evenColumns.add(col);
-//                } else {
-//                    oddColumns.add(col);
-//                }
-//            }
-//        }
-//
-//        List<Integer> preferredColumns = Counter.O.equals(getCounter()) ? evenColumns : oddColumns;
-//        List<Integer> fallbackColumns = Counter.O.equals(getCounter()) ? oddColumns : evenColumns;
-//
-//        if (!preferredColumns.isEmpty()) {
-//            return preferredColumns.get((int) (Math.random() * preferredColumns.size()));
-//        } else {
-//            return fallbackColumns.get((int) (Math.random() * fallbackColumns.size()));
-//        }
+        System.out.println("maximiseBestRun called with: " + maximiseBestRun(board));
+        return maximiseBestRun(board);
     }
 
     public boolean isWinningMove(int move, Board boardBeforeMove, Counter counter) throws InvalidMoveException {
@@ -94,5 +72,22 @@ public class ZugzwangDominator extends Player {
         }
 
         throw new NoMoveFoundException();
+    }
+
+    public int maximiseBestRun(Board board) {
+        int maxBestRun = 0;
+        int move = generateRandomMove(board);
+        BoardAnalyser boardAnalyser = new BoardAnalyser(board.getConfig());
+        GameState gameState = boardAnalyser.calculateGameState(board);
+
+        for (int i = 0; i < board.getConfig().getWidth(); i++) {
+            int gameStateMaxRun = gameState.getMaxInARowByCounter().values().size();
+            if (maxBestRun > gameStateMaxRun) {
+                maxBestRun = gameStateMaxRun;
+                move = i;
+            }
+        }
+
+        return move;
     }
 }
