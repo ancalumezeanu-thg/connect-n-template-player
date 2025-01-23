@@ -37,21 +37,6 @@ public class ZugzwangDominator extends Player {
         int bestMove = findBestMoveUsingMinimax(board);
         System.currentTimeMillis();
         return bestMove != -1 ? bestMove : generateRandomMove(board);
-
-//        try {
-//            System.out.println("maximiseBestRun called");
-//            return maximiseBestRun(board);
-//        } catch (NoMoveFoundException ignored) {
-//        }
-//
-//        try {
-//            System.out.println("blockOpponentFork called");
-//            return blockOpponentFork(board);
-//        } catch (NoMoveFoundException ignored) {
-//        }
-//
-//        System.out.println("generateRandomMove called");
-//        return generateRandomMove(board);
     }
 
     public boolean isWinningMove(int move, Board boardBeforeMove, Counter counter) throws InvalidMoveException {
@@ -102,27 +87,6 @@ public class ZugzwangDominator extends Player {
         throw new NoMoveFoundException();
     }
 
-    public int maximiseBestRun(Board board) throws NoMoveFoundException {
-        int maxBestRun = 0;
-        int move = -1;
-        BoardAnalyser boardAnalyser = new BoardAnalyser(board.getConfig());
-        GameState gameState = boardAnalyser.calculateGameState(board);
-
-        for (int i = 0; i < board.getConfig().getWidth(); i++) {
-            int gameStateMaxRun = gameState.getMaxInARowByCounter().values().size();
-            if (gameStateMaxRun >maxBestRun) {
-                maxBestRun = gameStateMaxRun;
-                move = i;
-            }
-        }
-
-        if (move == -1) {
-            throw new NoMoveFoundException(); // No valid moves found
-        }
-
-        return move;
-    }
-
     public int countWinningMoves(Board board, Counter counter) {
         int winningMoves = 0;
 
@@ -138,22 +102,12 @@ public class ZugzwangDominator extends Player {
         return winningMoves;
     }
 
-    public int blockOpponentFork(Board board) throws NoMoveFoundException {
-        try {
-            for (int i = 0; i < board.getConfig().getWidth(); i++){
-                Board futureOpponentBoard = new Board(board, i, getCounter().getOther());
-                int opponentFork = countWinningMoves(futureOpponentBoard, getCounter().getOther());
-
-                if (opponentFork > 1) {
-                    return i;
-                }
-            }
-        } catch (InvalidMoveException ignored) {}
-
-        throw new NoMoveFoundException();
+    // Min Max
+    private boolean isWithinBounds(int x, int y, Board board) {
+        return x >= 0 && x < board.getCounterPlacements().length
+                && y >= 0 && y < board.getCounterPlacements()[0].length;
     }
 
-    // Min Max
     public boolean isColumnPlayable(int col, Board board) {
         int topRow = board.getConfig().getHeight() - 1;
         Position positionToCheck = new Position(col, topRow);
@@ -216,8 +170,8 @@ public class ZugzwangDominator extends Player {
             for (int i = 0; i < board.getConfig().getWidth(); i++) {
                 if (isColumnPlayable(i, board)) {
                     try {
-                        Board childBoard = new Board(board, i, getCounter().getOther());
-                        int eval = minimaxWithPruning(childBoard, depth - 1, alpha, beta, true);
+                        Board simulatedBoard = new Board(board, i, getCounter().getOther());
+                        int eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, true);
                         minEval = Math.min(minEval, eval);
                         beta = Math.min(beta, eval);
 
@@ -287,7 +241,7 @@ public class ZugzwangDominator extends Player {
         int[] dy = {0, 1, 1, 1};   // Y direction (none, down, up-right, down-left)
 
         for (int direction = 0; direction < 4; direction++) {
-            int count = 1; // Start with 1 since we're counting the piece at the position itself
+            int count = 1;
             int x = position.getX();
             int y = position.getY();
 
@@ -317,10 +271,5 @@ public class ZugzwangDominator extends Player {
         }
 
         return maxCount;
-    }
-
-    private boolean isWithinBounds(int x, int y, Board board) {
-        return x >= 0 && x < board.getCounterPlacements().length
-                && y >= 0 && y < board.getCounterPlacements()[0].length;
     }
 }
