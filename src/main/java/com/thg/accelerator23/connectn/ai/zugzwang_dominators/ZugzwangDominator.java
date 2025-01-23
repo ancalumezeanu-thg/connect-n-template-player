@@ -49,7 +49,7 @@ public class ZugzwangDominator extends Player {
 
         if (depth == 0 || gameState.isWin() || gameState.isDraw()) {
             int a = evaluateBoard(board, boardAnalyser, gameState);
-            System.out.println("Will evaluate board " + a);
+//            System.out.println("Will evaluate board " + a);
 
             return a;
         }
