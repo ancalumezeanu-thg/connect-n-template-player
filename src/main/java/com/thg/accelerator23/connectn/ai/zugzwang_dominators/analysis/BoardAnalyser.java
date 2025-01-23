@@ -109,4 +109,60 @@ public class BoardAnalyser {
         }
         return bestRunByColour;
     }
+
+    public int getScore(Board board, Counter counter) {
+        Map<Counter, Integer> overallScoreByColour = new HashMap<>();
+        for (Counter c : Counter.values()) {
+            overallScoreByColour.put(c, 0);
+        }
+
+        for (Line line : getLines(board)) {
+            Map<Counter, Integer> scoreInLineByColour = getScoreByColour(line);
+
+            overallScoreByColour.put(counter, overallScoreByColour.get(counter) + scoreInLineByColour.get(counter));
+            overallScoreByColour.put(counter.getOther(), overallScoreByColour.get(counter.getOther()) + scoreInLineByColour.get(counter.getOther()));
+        }
+
+        return overallScoreByColour.get(counter) - overallScoreByColour.get(counter.getOther());
+    }
+
+    private Map<Counter, Integer> getScoreByColour(Line line) {
+        HashMap<Counter, Integer> scoreByColour = new HashMap<>();
+        for (Counter c : Counter.values()) {
+            scoreByColour.put(c, 0);
+        }
+
+        Counter current = null;
+        int currentRunLength = 0;
+        while (line.hasNext()) {
+            Counter next = line.next();
+            if (current != next) {
+                if (current != null) {
+                    if (currentRunLength == 2) {
+                        scoreByColour.put(current, 10);
+                    }
+
+                    if (currentRunLength == 3) {
+                        scoreByColour.put(current, 100);
+                    }
+                }
+                currentRunLength = 1;
+                current = next;
+            } else {
+                currentRunLength++;
+            }
+        }
+
+        if (current != null) {
+            if (currentRunLength == 2) {
+                scoreByColour.put(current, 10);
+            }
+
+            if (currentRunLength == 3) {
+                scoreByColour.put(current, 100);
+            }
+        }
+
+        return scoreByColour;
+    }
 }
