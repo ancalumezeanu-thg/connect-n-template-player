@@ -5,6 +5,8 @@ import com.thg.accelerator23.connectn.ai.zugzwang_dominators.analysis.BoardAnaly
 import com.thg.accelerator23.connectn.ai.zugzwang_dominators.analysis.GameState;
 import com.thg.accelerator23.connectn.ai.zugzwang_dominators.exception.NoMoveFoundException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 
@@ -23,36 +25,17 @@ public class ZugzwangDominator extends Player {
         //TODO: make sure said analysis uses less than 2G of heap and returns within 10 seconds on whichever machine is running it
 
         try {
-            System.out.println("findWinningMove called");
             return findWinningMove(board);
         } catch (NoMoveFoundException ignored){
         }
 
         try {
-            System.out.println("findBlockingMove called");
             return findBlockingMove(board);
         } catch (NoMoveFoundException ignored){
         }
 
-        // Use minimax to evaluate the best strategic move
-        System.out.println("minimaxWithPruning called");
-        int bestMove = -1;
-        int bestScore = Integer.MIN_VALUE;
-
-        for (int col = 0; col < board.getConfig().getWidth(); col++) {
-            try {
-                Board simulatedBoard = new Board(board, col, getCounter());
-                int score = minimaxWithPruning(simulatedBoard, MAX_DEPTH, Integer.MIN_VALUE, Integer.MAX_VALUE, false);
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMove = col;
-                }
-            } catch (InvalidMoveException ignored) {
-            }
-        }
-
-        // If no move is found, fall back to generating a random move
+        int bestMove = findBestMoveUsingMinimax(board);
+        System.currentTimeMillis();
         return bestMove != -1 ? bestMove : generateRandomMove(board);
 
 //        try {
@@ -79,14 +62,21 @@ public class ZugzwangDominator extends Player {
     }
 
     public int generateRandomMove(Board board) {
-        int column = (int) (Math.random() * board.getConfig().getWidth());
+        List<Integer> playableColumns = new ArrayList<>();
+        int height = board.getConfig().getHeight();
 
-        if (board.getCounterAtPosition(new Position(column, board.getConfig().getHeight())) == null) {
-          return column;
-        } else {
-          return generateRandomMove(board);
+        for (int i = 0; i < board.getConfig().getWidth(); i++) {
+            int topRow = height - 1;
+            Position positionToCheck = new Position(i, topRow);
+
+            if (board.getCounterAtPosition(positionToCheck) == null) {
+                playableColumns.add(i);
+            }
         }
+
+        return playableColumns.get((int) (Math.random() * playableColumns.size()));
     }
+
 
     public int findWinningMove(Board board) throws NoMoveFoundException {
         for (int i = 0; i < board.getConfig().getWidth(); i++) {
@@ -164,11 +154,39 @@ public class ZugzwangDominator extends Player {
     }
 
     // Min Max
+    public boolean isColumnPlayable(int col, Board board) {
+        int topRow = board.getConfig().getHeight() - 1;
+        Position positionToCheck = new Position(col, topRow);
+        return board.isWithinBoard(positionToCheck) && board.getCounterAtPosition(new Position(col, topRow)) == null;
+    }
+
+    private int findBestMoveUsingMinimax(Board board) {
+        int bestMove = -1;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (int i = 0; i < board.getConfig().getWidth(); i++) {
+            if (isColumnPlayable(i, board)) {
+                try {
+                    Board simulatedBoard = new Board(board, i, getCounter());
+                    int score = minimaxWithPruning(simulatedBoard, MAX_DEPTH, Integer.MIN_VALUE,
+                            Integer.MAX_VALUE, false);
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = i;
+                    }
+                } catch (InvalidMoveException ignored) {
+                }
+            }
+        }
+
+        return bestMove;
+    }
+
     private int minimaxWithPruning(Board board, int depth, int alpha, int beta, boolean isMaximizingPlayer) {
         BoardAnalyser boardAnalyser = new BoardAnalyser(board.getConfig());
         GameState gameState = boardAnalyser.calculateGameState(board);
 
-        // Terminal state: win, loss, draw, or depth limit reached
         if (depth == 0 || gameState.isWin() || gameState.isDraw()) {
             return evaluateBoard(board, gameState);
         }
@@ -176,34 +194,38 @@ public class ZugzwangDominator extends Player {
         if (isMaximizingPlayer) {
             int maxEval = Integer.MIN_VALUE;
 
-            for (int col = 0; col < board.getConfig().getWidth(); col++) {
-                try {
-                    Board childBoard = new Board(board, col, getCounter());
-                    int eval = minimaxWithPruning(childBoard, depth - 1, alpha, beta, false);
-                    maxEval = Math.max(maxEval, eval);
-                    alpha = Math.max(alpha, eval);
+            for (int i = 0; i < board.getConfig().getWidth(); i++) {
+                if (isColumnPlayable(i, board)) {
+                    try {
+                        Board simulatedBoard = new Board(board, i, getCounter());
+                        int eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, false);
+                        maxEval = Math.max(maxEval, eval);
+                        alpha = Math.max(alpha, eval);
 
-                    if (beta <= alpha) {
-                        break; // Alpha-beta pruning
+                        if (beta <= alpha) {
+                            break;
+                        }
+                    } catch (InvalidMoveException ignored) {
                     }
-                } catch (InvalidMoveException ignored) {
                 }
             }
             return maxEval;
         } else {
             int minEval = Integer.MAX_VALUE;
 
-            for (int col = 0; col < board.getConfig().getWidth(); col++) {
-                try {
-                    Board childBoard = new Board(board, col, getCounter().getOther());
-                    int eval = minimaxWithPruning(childBoard, depth - 1, alpha, beta, true);
-                    minEval = Math.min(minEval, eval);
-                    beta = Math.min(beta, eval);
+            for (int i = 0; i < board.getConfig().getWidth(); i++) {
+                if (isColumnPlayable(i, board)) {
+                    try {
+                        Board childBoard = new Board(board, i, getCounter().getOther());
+                        int eval = minimaxWithPruning(childBoard, depth - 1, alpha, beta, true);
+                        minEval = Math.min(minEval, eval);
+                        beta = Math.min(beta, eval);
 
-                    if (beta <= alpha) {
-                        break; // Alpha-beta pruning
+                        if (beta <= alpha) {
+                            break;
+                        }
+                    } catch (InvalidMoveException ignored) {
                     }
-                } catch (InvalidMoveException ignored) {
                 }
             }
             return minEval;
@@ -218,18 +240,87 @@ public class ZugzwangDominator extends Player {
             return 0;
         }
 
-        // Use your methods to compute heuristic scores
         int score = 0;
 
-        // Prioritize longer sequences of the AI's counters
+        // update score as per existing board
         for (Map.Entry<Counter, Integer> entry : gameState.getMaxInARowByCounter().entrySet()) {
             if (entry.getKey() == getCounter()) {
-                score += entry.getValue(); // Favor the AI's advantage
+                score += entry.getValue();
             } else {
-                score -= entry.getValue(); // Penalize the opponent's advantage
+                score -= entry.getValue();
+            }
+        }
+
+        score += evaluateForPotentialWinningMoves(board, getCounter());
+
+        score -= evaluateForPotentialWinningMoves(board, getCounter().getOther());
+
+        return score;
+    }
+
+    // SCORING SYSTEM
+    private int evaluateForPotentialWinningMoves(Board board, Counter counter) {
+        int score = 0;
+
+        // go through columns to check 2-in-a-rows or 3-in-a-rows
+        for (int col = 0; col < board.getConfig().getWidth(); col++) {
+            for (int row = 0; row < board.getConfig().getHeight(); row++) {
+                Position position = new Position(col, row);
+                if (board.getCounterAtPosition(position) == null) {
+                    int rowCount = countInARow(position, counter, board);
+                    if (rowCount == 2) {
+                        score += 10;
+                    } else if (rowCount == 3) {
+                        score += 100;
+                    }
+                }
             }
         }
 
         return score;
+    }
+
+    public int countInARow(Position position, Counter counter, Board board) {
+        int maxCount = 0;
+
+        int[] dx = {1, 0, 1, -1};  // X direction (right, none, right-up, right-down)
+        int[] dy = {0, 1, 1, 1};   // Y direction (none, down, up-right, down-left)
+
+        for (int direction = 0; direction < 4; direction++) {
+            int count = 1; // Start with 1 since we're counting the piece at the position itself
+            int x = position.getX();
+            int y = position.getY();
+
+            // Look in the positive direction (right, down, up-right, down-left)
+            int nx = x + dx[direction];
+            int ny = y + dy[direction];
+
+            while (isWithinBounds(nx, ny, board) && board.getCounterPlacements()[nx][ny] != null
+                    && board.getCounterPlacements()[nx][ny].equals(counter)) {
+                count++;
+                nx += dx[direction];
+                ny += dy[direction];
+            }
+
+            // Look in the negative direction (left, up, down-left, up-right)
+            nx = x - dx[direction];
+            ny = y - dy[direction];
+
+            while (isWithinBounds(nx, ny, board) && board.getCounterPlacements()[nx][ny] != null
+                    && board.getCounterPlacements()[nx][ny].equals(counter)) {
+                count++;
+                nx -= dx[direction];
+                ny -= dy[direction];
+            }
+
+            maxCount = Math.max(maxCount, count);
+        }
+
+        return maxCount;
+    }
+
+    private boolean isWithinBounds(int x, int y, Board board) {
+        return x >= 0 && x < board.getCounterPlacements().length
+                && y >= 0 && y < board.getCounterPlacements()[0].length;
     }
 }
