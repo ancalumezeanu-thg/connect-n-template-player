@@ -1,14 +1,17 @@
 package com.thg.accelerator23.connectn.ai.zugzwang_dominators;
 
-import com.thehutgroup.accelerator.connectn.player.*;
+import com.thehutgroup.accelerator.connectn.player.Board;
+import com.thehutgroup.accelerator.connectn.player.Counter;
+import com.thehutgroup.accelerator.connectn.player.InvalidMoveException;
+import com.thehutgroup.accelerator.connectn.player.Player;
 import com.thg.accelerator23.connectn.ai.zugzwang_dominators.analysis.BoardAnalyser;
 import com.thg.accelerator23.connectn.ai.zugzwang_dominators.analysis.GameState;
-
-import java.util.Map;
+import com.thg.accelerator23.connectn.ai.zugzwang_dominators.exception.NoMoveFoundException;
+import com.thg.accelerator23.connectn.ai.zugzwang_dominators.model.MinimaxResult;
 
 public class ZugzwangDominator extends Player {
 
-    private static final int MAX_DEPTH = 5;
+    private static final int MAX_DEPTH = 7;
 
     public ZugzwangDominator(Counter counter) {
         //TODO: fill in your name here
@@ -17,52 +20,74 @@ public class ZugzwangDominator extends Player {
 
     @Override
     public int makeMove(Board board) {
-        //TODO: some crazy analysis
-        //TODO: make sure said analysis uses less than 2G of heap and returns within 10 seconds on whichever machine is running it
 
-        int alpha = Integer.MIN_VALUE;
-        int beta = Integer.MAX_VALUE;
-        int bestScore = Integer.MIN_VALUE;
-        int bestMove = -1;
-
-        for (int i = 0; i < board.getConfig().getWidth(); i++) {
-            try {
-                Board simulatedBoard = new Board(board, i, getCounter());
-                int score = minimaxWithPruning(simulatedBoard, MAX_DEPTH, alpha, beta, true);
-
-                System.out.println(alpha + " " + beta + " " + score);
-
-                if (score > bestScore || bestMove == -1) {
-                    bestScore = score;
-                    bestMove = i;
-                }
-            } catch (InvalidMoveException ignored) {
-            }
+        try {
+            return findWinningMove(board);
+        } catch (NoMoveFoundException ignored){
         }
 
-        return bestMove;
+        try {
+            return findBlockingMove(board);
+        } catch (NoMoveFoundException ignored){
+        }
+
+        return minimaxWithPruning(board, MAX_DEPTH, Integer.MIN_VALUE, Integer.MAX_VALUE, true)
+                .getMove();
     }
 
-    private int minimaxWithPruning(Board board, int depth, int alpha, int beta, boolean isMaximizingPlayer) {
+    public boolean isWinningMove(int move, Board boardBeforeMove, Counter counter) throws InvalidMoveException {
+        Board boardWithFutureMove = new Board(boardBeforeMove, move, counter);
+        BoardAnalyser boardAnalyser = new BoardAnalyser(boardWithFutureMove.getConfig());
+        GameState gameState = boardAnalyser.calculateGameState(boardWithFutureMove);
+        return gameState.isWin();
+    }
+
+    public int findWinningMove(Board board) throws NoMoveFoundException {
+        for (int i = 0; i < board.getConfig().getWidth(); i++) {
+            try {
+                if (isWinningMove(i, board, getCounter())) {
+                    return i;
+                }
+            } catch (InvalidMoveException ignored) {}
+        }
+
+        throw new NoMoveFoundException();
+    }
+
+    public int findBlockingMove(Board board) throws NoMoveFoundException {
+        for (int i = 0; i < board.getConfig().getWidth(); i++) {
+            try {
+                if (isWinningMove(i, board, getCounter().getOther())) {
+                    return i;
+                }
+            } catch (InvalidMoveException ignored) {}
+        }
+
+        throw new NoMoveFoundException();
+    }
+
+    private MinimaxResult minimaxWithPruning(Board board, int depth, int alpha, int beta, boolean isMaximizingPlayer) {
         BoardAnalyser boardAnalyser = new BoardAnalyser(board.getConfig());
         GameState gameState = boardAnalyser.calculateGameState(board);
 
-        if (depth == 0 || gameState.isWin() || gameState.isDraw()) {
-            int a = evaluateBoard(board, boardAnalyser, gameState);
-//            System.out.println("Will evaluate board " + a);
-
-            return a;
+        if (depth == 0 || gameState.isEnd()) {
+            int score = evaluateBoard(gameState);
+            return new MinimaxResult(-1, score);
         }
 
         if (isMaximizingPlayer) {
-            int maxEval = Integer.MIN_VALUE;
+            MinimaxResult bestResult = new MinimaxResult(-1, Integer.MIN_VALUE);
 
             for (int i = 0; i < board.getConfig().getWidth(); i++) {
                 try {
                     Board simulatedBoard = new Board(board, i, getCounter());
-                    int eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, false);
-                    maxEval = Math.max(maxEval, eval);
-                    alpha = Math.max(alpha, eval);
+                    MinimaxResult eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, false);
+
+                    if (eval.getScore() > bestResult.getScore() || bestResult.getMove() == -1) {
+                        bestResult = new MinimaxResult(i, eval.getScore());
+                    }
+
+                    alpha = Math.max(alpha, eval.getScore());
 
                     if (beta <= alpha) {
                         break;
@@ -70,16 +95,20 @@ public class ZugzwangDominator extends Player {
                 } catch (InvalidMoveException ignored) {
                 }
             }
-            return maxEval;
+            return bestResult;
         } else {
-            int minEval = Integer.MAX_VALUE;
+            MinimaxResult bestResult = new MinimaxResult(-1, Integer.MAX_VALUE);
 
             for (int i = 0; i < board.getConfig().getWidth(); i++) {
                 try {
                     Board simulatedBoard = new Board(board, i, getCounter().getOther());
-                    int eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, true);
-                    minEval = Math.min(minEval, eval);
-                    beta = Math.min(beta, eval);
+                    MinimaxResult eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, true);
+
+                    if (eval.getScore() < bestResult.getScore() || bestResult.getMove() == -1) {
+                        bestResult = new MinimaxResult(i, eval.getScore());
+                    }
+
+                    beta = Math.min(beta, eval.getScore());
 
                     if (beta <= alpha) {
                         break;
@@ -87,18 +116,19 @@ public class ZugzwangDominator extends Player {
                 } catch (InvalidMoveException ignored) {
                 }
             }
-            return minEval;
+            return bestResult;
         }
     }
 
-    private int evaluateBoard(Board board, BoardAnalyser boardAnalyser, GameState gameState) {
+    private int evaluateBoard(GameState gameState) {
         if (gameState.isWin()) {
             return gameState.getWinner() == getCounter() ? Integer.MAX_VALUE : Integer.MIN_VALUE;
         }
+
         if (gameState.isDraw()) {
             return 0;
         }
 
-        return boardAnalyser.getScore(board, getCounter());
+        return gameState.getScoreByCounter().get(getCounter()) - gameState.getScoreByCounter().get(getCounter().getOther());
     }
 }
