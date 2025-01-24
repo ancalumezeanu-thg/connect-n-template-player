@@ -16,11 +16,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class BoardAnalyser {
-    private final Function<Position, Position> hMover = p -> new Position(p.getX() + 1, p.getY());
-    private final Function<Position, Position> vMover = p -> new Position(p.getX(), p.getY() + 1);
-    private final Function<Position, Position> diagUpRightMover = hMover.compose(vMover);
-    private final Function<Position, Position> diagUpLeftMover =
-            p -> new Position(p.getX() - 1, p.getY() + 1);
     private final Map<Function<Position, Position>, List<Position>> positionsByFunction;
 
     public BoardAnalyser(GameConfig config) {
@@ -40,29 +35,42 @@ public class BoardAnalyser {
         List<Position> rightBottom = Stream.concat(rightEdge.stream(),
                 bottomEdge.stream()).distinct().collect(Collectors.toList());
 
+        Function<Position, Position> hMover = p -> new Position(p.getX() + 1, p.getY());
         positionsByFunction.put(hMover, leftEdge);
+
+        Function<Position, Position> vMover = p -> new Position(p.getX(), p.getY() + 1);
         positionsByFunction.put(vMover, bottomEdge);
+
+        Function<Position, Position> diagUpRightMover = hMover.compose(vMover);
         positionsByFunction.put(diagUpRightMover, leftBottom);
+
+        Function<Position, Position> diagUpLeftMover = p -> new Position(p.getX() - 1, p.getY() + 1);
         positionsByFunction.put(diagUpLeftMover, rightBottom);
     }
 
     public GameState calculateGameState(Board board) {
-        List<Line> lines = getLines(board);
-        Map<Counter, Integer> bestRunByColour = new HashMap<>();
-        for (Line line : lines) {
-            Map<Counter, Integer> bestRunInLine = getBestRunByColour(line);
-            bestRunByColour = maxMap(bestRunInLine, bestRunByColour);
-        }
-        boolean boardFull = isBoardFull(board);
-        return new GameState(bestRunByColour, board.getConfig(), boardFull);
-    }
+        Map<Counter, Integer> overallScoreByCounter = new HashMap<>();
+        overallScoreByCounter.put(Counter.O, 0);
+        overallScoreByCounter.put(Counter.X, 0);
 
-    private Map<Counter, Integer> maxMap(Map<Counter, Integer> map1, Map<Counter, Integer> map2) {
-        HashMap<Counter, Integer> maxMap = new HashMap<>();
-        for (Map.Entry<Counter, Integer> entry : map1.entrySet()) {
-            maxMap.put(entry.getKey(), Math.max(entry.getValue(), map2.getOrDefault(entry.getKey(), 0)));
+        for (Line line : getLines(board)) {
+            Map<Counter, Integer> scoreInLineByCounter = getScoreByCounter(line, board.getConfig().getnInARowForWin());
+
+            for (Counter counter : Counter.values()) {
+                if (scoreInLineByCounter.get(counter) == Integer.MAX_VALUE) {
+                    overallScoreByCounter.put(counter, Integer.MAX_VALUE);
+                } else {
+                    overallScoreByCounter.put(counter, overallScoreByCounter.get(counter) + scoreInLineByCounter.get(counter));
+                }
+            }
+
+            if (overallScoreByCounter.get(Counter.O) == Integer.MAX_VALUE || overallScoreByCounter.get(Counter.X) == Integer.MAX_VALUE) {
+                break;
+            }
         }
-        return maxMap;
+
+        boolean boardFull = isBoardFull(board);
+        return new GameState(overallScoreByCounter, boardFull);
     }
 
     private boolean isBoardFull(Board board) {
@@ -83,19 +91,25 @@ public class BoardAnalyser {
         return lines;
     }
 
-    private Map<Counter, Integer> getBestRunByColour(Line line) {
-        HashMap<Counter, Integer> bestRunByColour = new HashMap<>();
+    private Map<Counter, Integer> getScoreByCounter(Line line, int nInARowForWin) {
+        HashMap<Counter, Integer> scoreByCounter = new HashMap<>();
         for (Counter c : Counter.values()) {
-            bestRunByColour.put(c, 0);
+            scoreByCounter.put(c, 0);
         }
+
         Counter current = null;
         int currentRunLength = 0;
         while (line.hasNext()) {
             Counter next = line.next();
             if (current != next) {
                 if (current != null) {
-                    if (Math.max(currentRunLength, 1) > bestRunByColour.get(current)) {
-                        bestRunByColour.put(current, Math.max(currentRunLength, 1));
+                    if (currentRunLength >= 2 && scoreByCounter.get(current) != Integer.MAX_VALUE) {
+                        if (currentRunLength >= nInARowForWin) {
+                            scoreByCounter.put(current, Integer.MAX_VALUE);
+                            break;
+                        } else {
+                            scoreByCounter.put(current, (int) (scoreByCounter.get(current) + Math.pow(10, currentRunLength - 1)));
+                        }
                     }
                 }
                 currentRunLength = 1;
@@ -104,9 +118,15 @@ public class BoardAnalyser {
                 currentRunLength++;
             }
         }
-        if (current != null && Math.max(currentRunLength, 1) > bestRunByColour.get(current)) {
-            bestRunByColour.put(current, Math.max(currentRunLength, 1));
+
+        if (current != null && currentRunLength >= 2 && scoreByCounter.get(current) != Integer.MAX_VALUE) {
+            if (currentRunLength >= nInARowForWin) {
+                scoreByCounter.put(current, Integer.MAX_VALUE);
+            } else {
+                scoreByCounter.put(current, (int) (scoreByCounter.get(current) + Math.pow(10, currentRunLength - 1)));
+            }
         }
-        return bestRunByColour;
+
+        return scoreByCounter;
     }
 }
