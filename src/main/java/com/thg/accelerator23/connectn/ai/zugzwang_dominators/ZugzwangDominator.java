@@ -20,19 +20,32 @@ public class ZugzwangDominator extends Player {
 
     @Override
     public int makeMove(Board board) {
+        long startTime = System.currentTimeMillis();
+        long timeLimit = 8500;
+        int bestMove = -1;
 
-        try {
-            return findWinningMove(board);
-        } catch (NoMoveFoundException ignored){
+        for (int i = 0; i < MAX_DEPTH; i++) {
+            try {
+                return findWinningMove(board);
+            } catch (NoMoveFoundException ignored){
+            }
+
+            try {
+                return findBlockingMove(board);
+            } catch (NoMoveFoundException ignored){
+            }
+
+            try {
+                bestMove = minimaxWithPruning(board, MAX_DEPTH, Integer.MIN_VALUE, Integer.MAX_VALUE, true,
+                        startTime, timeLimit)
+                        .getMove();
+            } catch (RuntimeException e) {
+                System.err.println("Time limit reached at depth " + i);
+                break;
+            }
         }
 
-        try {
-            return findBlockingMove(board);
-        } catch (NoMoveFoundException ignored){
-        }
-
-        return minimaxWithPruning(board, MAX_DEPTH, Integer.MIN_VALUE, Integer.MAX_VALUE, true)
-                .getMove();
+        return bestMove;
     }
 
     public boolean isWinningMove(int move, Board boardBeforeMove, Counter counter) throws InvalidMoveException {
@@ -66,7 +79,13 @@ public class ZugzwangDominator extends Player {
         throw new NoMoveFoundException();
     }
 
-    private MinimaxResult minimaxWithPruning(Board board, int depth, int alpha, int beta, boolean isMaximizingPlayer) {
+    private MinimaxResult minimaxWithPruning(Board board, int depth, int alpha, int beta, boolean isMaximizingPlayer,
+                                             long startTime, long timeLimit) {
+
+        if (System.currentTimeMillis() - startTime >= timeLimit) {
+            throw new RuntimeException("Time limit exceeded");
+        }
+
         BoardAnalyser boardAnalyser = new BoardAnalyser(board.getConfig());
         GameState gameState = boardAnalyser.calculateGameState(board);
 
@@ -81,7 +100,8 @@ public class ZugzwangDominator extends Player {
             for (int i = 0; i < board.getConfig().getWidth(); i++) {
                 try {
                     Board simulatedBoard = new Board(board, i, getCounter());
-                    MinimaxResult eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, false);
+                    MinimaxResult eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, false,
+                            startTime, timeLimit);
 
                     if (eval.getScore() > bestResult.getScore() || bestResult.getMove() == -1) {
                         bestResult = new MinimaxResult(i, eval.getScore());
@@ -102,7 +122,8 @@ public class ZugzwangDominator extends Player {
             for (int i = 0; i < board.getConfig().getWidth(); i++) {
                 try {
                     Board simulatedBoard = new Board(board, i, getCounter().getOther());
-                    MinimaxResult eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, true);
+                    MinimaxResult eval = minimaxWithPruning(simulatedBoard, depth - 1, alpha, beta, true,
+                            startTime, timeLimit);
 
                     if (eval.getScore() < bestResult.getScore() || bestResult.getMove() == -1) {
                         bestResult = new MinimaxResult(i, eval.getScore());
